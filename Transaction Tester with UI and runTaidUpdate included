@@ -1,0 +1,531 @@
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import filedialog
+import requests
+from faker import Faker
+import random
+import datetime
+import time
+import subprocess
+import os
+import platform
+import xml.etree.ElementTree as ET
+
+# Initialize the Faker library to generate random addresses (set locale to 'en_US' for USA addresses)
+fake = Faker()
+
+# Global variables to store selected directory for output file, credentials, and records
+output_file_path = ""
+api_user = ""
+api_password = ""
+xml_content = ""
+global_records = {}  # Global dictionary to hold the records
+
+# Function to browse and select the directory where the output file will be saved
+def browse_directory():
+    global output_file_path
+
+    # Ask the user to select a directory
+    directory = filedialog.askdirectory(title="Select Directory")
+
+    # Update global output path if a directory was selected
+    if directory:
+        output_file_path = os.path.join(directory, "taxareaid.xml")
+
+        # Update the label to show the selected directory
+        directory_label.config(text=f"Selected directory: {directory}")
+
+# Function to execute the PowerShell or shell command and read the output file into an array
+def execute_terminal_command():
+    global api_user, api_password, output_file_path, global_records
+
+    # Retrieve the values from the input fields
+    api_user = entry_userName.get()
+    api_password = entry_password.get()
+
+    # Check if the credentials are provided
+    if not api_user or not api_password:
+        result_label.config(text="Please provide both API user and password.")
+        return
+
+    # Determine the file extension based on the operating system
+    if platform.system() == "Windows":
+        bat_or_sh = "bat"  # For Windows, use .bat
+    else:
+        bat_or_sh = "sh"   # For non-Windows, use .sh
+
+    # Check if output file exists after the command runs
+    if output_file_path:
+        try:
+            # Now build the main command with dynamic API user and password
+            if platform.system() == "Windows":
+                main_command = f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password} -n TAXAREAS -l taxareaid.xml"
+            else:
+                main_command = f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password} -n TAXAREAS -l taxareaid.xml"
+
+            full_command = f"cd {os.path.dirname(output_file_path)} && {main_command}"
+
+            # Run the main command in the selected directory
+            if platform.system() == "Windows":
+                subprocess.run(full_command, shell=True, check=True)
+            else:
+                subprocess.run(full_command, shell=True, check=True)
+
+            # After the command completes, read the contents of the output file into an array
+            if os.path.exists(output_file_path):
+
+                # Parse the XML file
+                tree = ET.parse(output_file_path)
+                root = tree.getroot()  # Get the root of the XML tree
+
+                # Convert the XML content to a list of dictionaries for each <Record> element
+                record_list = []
+                for record in root.findall('Record'):
+                    record_dict = {child.tag: child.text for child in record}
+                    record_list.append(record_dict)
+
+                # Save the record_list into the global dictionary
+                global_records = {f"record_{i+1}": record for i, record in enumerate(record_list)}
+
+                # Print the result
+                print(global_records)  # Print the global dictionary with records
+
+                # Update the result label
+                result_label.config(text="***Update is complete***")
+            else:
+                result_label.config(text="Output file not found!")
+        except subprocess.CalledProcessError as e:
+            result_label.config(text=f"Error running command: {e}")
+    else:
+        result_label.config(text="No output file path selected!")
+
+# Function to generate a random USA address
+def generate_random_address(fake):
+    return {
+        "street_address1": fake.street_address(),
+        "city": fake.city(),
+        "state": fake.state(),
+        "postal_code": fake.zipcode(),
+        "country": "United States"  # Force country to 'United States' because the faker library
+        # doesn't guarantee it will be USA even if the locale is set to en_US
+    }
+
+
+# Function to generate a random extended price
+def generate_random_price():
+    return round(random.uniform(10.0, 1000.0), 2)
+
+
+# Function to get address information
+def get_address():
+    if var_random_address.get():  # If checkbox is selected, use random address
+        return generate_random_address(fake)
+    else:  # Else, collect data from entry widgets
+        return {
+            "street_address1": entry_street1.get(),
+            "city": entry_city.get(),
+            "state": entry_state.get(),
+            "postal_code": entry_postal.get(),
+            "country": entry_country.get(),
+            "taxareaid": entry_taxareaid.get()  # Get the value from the "Tax Area ID" input field
+        }
+
+
+# Variables to count successes, failures, and track times
+success_count = 0
+failure_count = 0
+total_time = 0
+
+
+# Function to generate a random date within the given range
+def generate_random_date(start_date, end_date):
+    delta = end_date - start_date
+    random_days = random.randint(0, delta.days)
+    return (start_date + datetime.timedelta(days=random_days)).strftime("%Y-%m-%d")
+
+# Function to get a random Tax Area ID from the global records dictionary
+def get_random_taxareaid():
+    if global_records:
+        # Randomly select a record
+        random_record = random.choice(list(global_records.values()))
+        # Return the TaxAreaId from the selected record
+        return random_record.get("TaxAreaId", "")
+    return ""
+
+# Function to send SOAP request
+def send_soap_request():
+    global success_count, failure_count, total_time
+
+    # Get the number of times to send requests
+    try:
+        num_requests = int(entry_num_requests.get())
+        if num_requests <= 0:
+            messagebox.showerror("Error", "Please enter a valid number of requests.")
+            return
+    except ValueError:
+        messagebox.showerror("Error", "Please enter a valid number for requests.")
+        return
+
+    # Get the start and end dates for the range
+    try:
+        start_date = datetime.datetime.strptime(entry_start_date.get(), "%Y-%m-%d")
+        end_date = datetime.datetime.strptime(entry_end_date.get(), "%Y-%m-%d")
+    except ValueError:
+        messagebox.showerror("Error", "Please enter valid dates in the format YYYY-MM-DD.")
+        return
+
+    # Get the custom URL from the input field
+    url = entry_url.get()
+    if not url:
+        messagebox.showerror("Error", "Please enter a valid URL.")
+        return
+
+    # Get the number of line items
+    try:
+        num_line_items = int(entry_num_line_items.get())
+        if num_line_items <= 0:
+            messagebox.showerror("Error", "Please enter a valid number of line items.")
+            return
+    except ValueError:
+        messagebox.showerror("Error", "Please enter a valid number for line items.")
+        return
+
+    # Reset time tracking before starting
+    total_time = 0
+
+    for _ in range(num_requests):
+        seller_address = get_address()  # This will get the updated address including the Tax Area ID
+        customer_address = get_address()
+
+        # Get the Tax Area ID either from the user input or randomly from records
+        if var_random_taxareaid.get():  # If checkbox is selected, use a random Tax Area ID
+            taxareaid = get_random_taxareaid()
+        else:
+            taxareaid = seller_address.get("taxareaid", "")  # Use the value from the address input field
+
+        product = entry_product.get()
+        product_class = entry_productClass.get()
+        price = entry_price.get()
+        taxpayer_company = entry_taxpayerCompany.get()
+        taxpayer_division = entry_taxpayerDivision.get()
+        taxpayer_department = entry_taxpayerDepartment.get()
+        user_name = entry_userName.get()
+        password = entry_password.get()
+
+        if var_random_price.get():
+            price = generate_random_price()
+
+        # Generate a random date within the provided range
+        document_date = generate_random_date(start_date, end_date)
+
+        # Generate the line items dynamically
+        line_items = ""
+        for line_number in range(1, num_line_items + 1):
+            line_items += generate_line_item(line_number, product, product_class, price)
+
+            # Begin constructing the SOAP request
+            soap_payload = f'''<?xml version="1.0" encoding="UTF-8"?>
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+        xmlns:urn="urn:vertexinc:o-series:tps:9:0">
+           <soapenv:Header/>
+           <soapenv:Body>
+              <urn:VertexEnvelope>
+                 <urn:Login>
+                    <urn:UserName>{user_name}</urn:UserName>
+                    <urn:Password>{password}</urn:Password>
+                 </urn:Login>
+                 <InvoiceRequest documentDate="{document_date}" transactionType="SALE">
+                    <Seller>
+                       <Company>{taxpayer_company}</Company>
+                       <Division>{taxpayer_division}</Division>
+                       <Department>{taxpayer_department}</Department>
+                       <PhysicalOrigin>
+                          <StreetAddress1>{seller_address['street_address1']}</StreetAddress1>
+                          <City>{seller_address['city']}</City>
+                          <MainDivision>{seller_address['state']}</MainDivision>
+                          <PostalCode>{seller_address['postal_code']}</PostalCode>
+                          <Country>{seller_address['country']}</Country>
+                       </PhysicalOrigin>
+                       <AdministrativeOrigin>
+                          <StreetAddress1>{seller_address['street_address1']}</StreetAddress1>
+                          <City>{seller_address['city']}</City>
+                          <MainDivision>{seller_address['state']}</MainDivision>
+                          <PostalCode>{seller_address['postal_code']}</PostalCode>
+                          <Country>{seller_address['country']}</Country>
+                       </AdministrativeOrigin>
+                    </Seller>
+                    <Customer>
+                       <Destination>
+                          <StreetAddress1>{seller_address['street_address1']}</StreetAddress1>
+                          <City>{customer_address['city']}</City>
+                          <MainDivision>{customer_address['state']}</MainDivision>
+                          <PostalCode>{customer_address['postal_code']}</PostalCode>
+                          <Country>{customer_address['country']}</Country>
+                       </Destination>
+                       <AdministrativeDestination>
+                          <StreetAddress1>{seller_address['street_address1']}</StreetAddress1>
+                          <City>{customer_address['city']}</City>
+                          <MainDivision>{customer_address['state']}</MainDivision>
+                          <PostalCode>{customer_address['postal_code']}</PostalCode>
+                          <Country>{customer_address['country']}</Country>
+                       </AdministrativeDestination>
+                    </Customer>
+                    {line_items}  <!-- This will dynamically add all the line items -->
+                 </InvoiceRequest>
+              </urn:VertexEnvelope>
+           </soapenv:Body>
+        </soapenv:Envelope>'''
+
+            # If the Tax Area ID was provided, add it to the relevant parts of the request
+            if taxareaid:  # Only add taxAreaId if it's not empty
+                soap_payload = soap_payload.replace('<PhysicalOrigin>', f'<PhysicalOrigin taxAreaId="{taxareaid}">')
+                soap_payload = soap_payload.replace('<AdministrativeOrigin>',
+                                                    f'<AdministrativeOrigin taxAreaId="{taxareaid}">')
+                soap_payload = soap_payload.replace('<Destination>', f'<Destination taxAreaId="{taxareaid}">')
+                soap_payload = soap_payload.replace('<AdministrativeDestination>',
+                                                    f'<AdministrativeDestination taxAreaId="{taxareaid}">')
+
+        headers = {
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': 'urn:vertexinc:o-series:tps:9:0/CalculateTax90'
+        }
+
+        # Track time for each request
+        start_time = time.time()
+
+        print(soap_payload)
+
+        try:
+            response = requests.post(url, data=soap_payload, headers=headers)
+
+            # Calculate the time taken for the request in milliseconds
+            end_time = time.time()
+            time_taken = (end_time - start_time) * 1000  # Convert to milliseconds
+            total_time += time_taken
+
+            if response.status_code == 200:
+                success_count += 1
+            else:
+                failure_count += 1
+                show_temp_error(f"Request failed with status code {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            end_time = time.time()
+            time_taken = (end_time - start_time) * 1000
+            total_time += time_taken
+            failure_count += 1
+            show_temp_error(f"An error occurred: {e}")
+
+    # Calculate average time per request
+    average_time = total_time / num_requests if num_requests > 0 else 0
+
+    # Display a summary of the results after all requests
+    messagebox.showinfo("Summary", f"Total requests sent: {num_requests}\n"
+                                   f"Successful responses: {success_count}\n"
+                                   f"Failed attempts: {failure_count}\n"
+                                   f"Total time for all requests: {total_time:.2f} ms\n"
+                                   f"Average time per request: {average_time:.2f} ms")
+
+
+# Temporary error message display function
+def show_temp_error(error_message):
+    error_label.config(text=error_message, fg="red")
+    error_label.after(3000, clear_error)  # Remove error message after 3 seconds
+
+
+def clear_error():
+    error_label.config(text="")
+
+
+# Function to toggle address fields based on checkbox state
+def populate_address_fields():
+    # When the locale is changed, update the `Faker` instance
+    fake = Faker(selected_locale.get())  # Initialize Faker with the selected locale
+
+    if var_random_address.get():
+        random_address = generate_random_address(fake)
+        entry_street1.delete(0, tk.END)
+        entry_street1.insert(0, random_address["street_address1"])
+        entry_city.delete(0, tk.END)
+        entry_city.insert(0, random_address["city"])
+        entry_state.delete(0, tk.END)
+        entry_state.insert(0, random_address["state"])
+        entry_postal.delete(0, tk.END)
+        entry_postal.insert(0, random_address["postal_code"])
+        entry_country.delete(0, tk.END)
+        entry_country.insert(0, random_address["country"])
+    else:
+        entry_street1.delete(0, tk.END)
+        entry_city.delete(0, tk.END)
+        entry_state.delete(0, tk.END)
+        entry_postal.delete(0, tk.END)
+        entry_country.delete(0, tk.END)
+
+
+def populate_random_price():
+    if var_random_price.get():
+        random_price = generate_random_price()
+        entry_price.delete(0, tk.END)
+        entry_price.insert(0, f"{random_price:.2f}")
+    elif not var_random_address.get():
+        entry_price.delete(0, tk.END)
+
+
+# Function to generate line items based on the number input
+def generate_line_item(line_number, product, product_class, price):
+    return f'''
+    <LineItem lineItemNumber="{line_number}">
+        <Product productClass="[{product_class}]">{product}</Product>
+        <ExtendedPrice>{price}</ExtendedPrice>
+    </LineItem>'''
+
+# Create the main window
+root = tk.Tk()
+root.title("SOAP Request Sender")
+root.geometry("1400x700")
+
+# Create and place the input field for custom URL
+tk.Label(root, text="O Series Calc Endpoint (do not include the ?wsdl at the end):").grid(row=1, column=2, pady=10,
+                                                                                          sticky="nsew")
+entry_url = tk.Entry(root, width=80)
+entry_url.grid(row=2, columnspan=2, column=1, padx=10, pady=10)
+
+tk.Label(root, text="Username:").grid(row=3, column=1, pady=5)
+entry_userName = tk.Entry(root)
+entry_userName.grid(row=4, column=1, padx=5, pady=5)
+
+tk.Label(root, text="Password").grid(row=3, column=2, pady=5)
+entry_password = tk.Entry(root)
+entry_password.grid(row=4, column=2, padx=5, pady=5)
+
+# Create and place the input field for the number of requests
+tk.Label(root, text="Number of Requests:").grid(row=3, column=3, pady=5)
+entry_num_requests = tk.Entry(root)
+entry_num_requests.grid(row=4, column=3, pady=5)
+
+tk.Label(root, text="Taxpayer Company:").grid(row=5, column=1, pady=5)
+entry_taxpayerCompany = tk.Entry(root)
+entry_taxpayerCompany.grid(row=6, column=1, pady=5)
+
+tk.Label(root, text="Taxpayer Division:").grid(row=5, column=2, pady=5)
+entry_taxpayerDivision = tk.Entry(root)
+entry_taxpayerDivision.grid(row=6, column=2, pady=5)
+
+tk.Label(root, text="Taxpayer Department:").grid(row=5, column=3, pady=5)
+entry_taxpayerDepartment = tk.Entry(root)
+entry_taxpayerDepartment.grid(row=6, column=3, pady=5)
+
+# Create and place the form fields for address
+tk.Label(root, text="Street Address 1:").grid(row=9, column=1, pady=5)
+entry_street1 = tk.Entry(root)
+entry_street1.grid(row=10, column=1, pady=5)
+
+tk.Label(root, text="City:").grid(row=9, column=2, pady=5)
+entry_city = tk.Entry(root)
+entry_city.grid(row=10, column=2, pady=5)
+
+tk.Label(root, text="State:").grid(row=9, column=3, pady=5)
+entry_state = tk.Entry(root)
+entry_state.grid(row=10, column=3, pady=5)
+
+tk.Label(root, text="Postal Code:").grid(row=9, column=4, pady=5)
+entry_postal = tk.Entry(root)
+entry_postal.grid(row=10, column=4, pady=5)
+
+tk.Label(root, text="Country:").grid(row=9, column=5, pady=5)
+entry_country = tk.Entry(root)
+entry_country.grid(row=10, column=5, pady=5)
+
+tk.Label(root, text="Tax Area ID:").grid(row=9, column=6, pady=5)
+entry_taxareaid = tk.Entry(root)
+entry_taxareaid.grid(row=10, column=6, pady=5)
+
+tk.Label(root, text="Product:").grid(row=21, column=1, pady=5)
+entry_product = tk.Entry(root)
+entry_product.grid(row=22, column=1, pady=5)
+
+tk.Label(root, text="Product Class:").grid(row=21, column=2, pady=5)
+entry_productClass = tk.Entry(root)
+entry_productClass.grid(row=22, column=2, pady=5)
+
+tk.Label(root, text="Price:").grid(row=21, column=3, pady=5)
+entry_price = tk.Entry(root)
+entry_price.grid(row=22, column=3, pady=5)
+
+# Create and place the input field for number of line items
+tk.Label(root, text="Number of Line Items:").grid(row=21, column=4, pady=5)
+entry_num_line_items = tk.Entry(root)
+entry_num_line_items.grid(row=22, column=4, pady=5)
+
+# Create and place the date range fields for documentDate
+tk.Label(root, text="Start Date (YYYY-MM-DD):").grid(row=1, column=6, pady=5)
+entry_start_date = tk.Entry(root)
+entry_start_date.grid(row=2, column=6, pady=5)
+
+tk.Label(root, text="End Date (YYYY-MM-DD):").grid(row=1, column=7, pady=5)
+entry_end_date = tk.Entry(root)
+entry_end_date.grid(row=2, column=7, pady=5)
+
+# Add a text note below the date input fields
+tk.Label(root, text="Requests are generated with random dates within this range",
+         font=("Arial", 10), fg="blue").grid(row=3, column=6, columnspan=2, pady=5)
+
+# Create and place the checkbox for random address generation
+var_random_address = tk.BooleanVar()
+checkbox_random_address = tk.Checkbutton(root, text="Use Random Full Address (likely invalid)", variable=var_random_address,
+                                         command=populate_address_fields)
+checkbox_random_address.grid(row=27, column=3, columnspan=1, pady=5)
+
+# List of available locales
+available_locales = ['en_US']
+
+# Create a variable to hold the selected locale
+selected_locale = tk.StringVar()
+selected_locale.set(available_locales[0])  # Default value
+
+# Create a dropdown for locale selection
+tk.Label(root, text="Select Locale/Country in which to generate random addresses with:").grid(row=26, column=2, pady=10)
+locale_dropdown = tk.OptionMenu(root, selected_locale, *available_locales)
+locale_dropdown.grid(row=27, column=2, pady=10)
+
+# Create and place the checkbox for random price generation
+var_random_price = tk.BooleanVar()
+checkbox_random_price = tk.Checkbutton(root, text="Use Random Price", variable=var_random_price,
+                                       command=populate_random_price)
+checkbox_random_price.grid(row=27, column=4, columnspan=1, pady=5)
+
+# Create and place the error label
+error_label = tk.Label(root, text="", fg="red")
+error_label.grid(row=18, column=2, columnspan=1, pady=5)
+
+# Create and place the submit button
+submit_button = tk.Button(root, text="Send SOAP Request", command=send_soap_request)
+submit_button.grid(row=31, column=3, pady=15)
+
+
+
+
+# Create a button that will trigger the PowerShell command execution
+execute_button = tk.Button(root, text="Update Tax Area ID List", command=execute_terminal_command)
+execute_button.grid(row=33, column=4)
+
+# Create a button that will prompt the user to browse and select a directory
+browse_button = tk.Button(root, text="Select Client Utilities /bin", command=browse_directory)
+browse_button.grid(row=33, column=5)
+
+# Label to display the selected directory
+directory_label = tk.Label(root, text="No directory selected")
+directory_label.grid(row=34, column=5)
+
+# Label to display the results
+result_label = tk.Label(root, text="Results will be shown here.")
+result_label.grid(row=34, column=5)
+
+# Add a checkbox for "Use Random Tax Area ID"
+var_random_taxareaid = tk.BooleanVar()
+checkbox_random_taxareaid = tk.Checkbutton(root, text="Use Random Tax Area ID", variable=var_random_taxareaid)
+checkbox_random_taxareaid.grid(row=27, column=5, columnspan=1, pady=5)
+
+
+
+# Start the main event loop
+root.mainloop()
