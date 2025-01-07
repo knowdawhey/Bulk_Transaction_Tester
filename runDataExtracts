@@ -1,3 +1,15 @@
+#Before you can use this, please download the Client Utilities folder from Vertex Community
+and then configure your .properties file from within it to point to your current O Series environment. This will be the /vertex-remove-services
+
+
+
+
+
+
+
+
+
+
 import tkinter as tk
 from tkinter import filedialog
 import subprocess
@@ -17,9 +29,10 @@ def browse_directory():
     # Ask the user to select a directory
     directory = filedialog.askdirectory(title="Select Directory")
 
-    # Update global output path if a directory was selected
+    # Update global path if a directory was selected but ad a \ to ensure the execute_terminal_command
+    # actually runs correctly
     if directory:
-        utilities_file_path = os.path.join(directory, "")
+        utilities_file_path = os.path.join(directory) + "\\"
 
         # Update the label to show the selected directory
         directory_label.config(text=f"Selected directory: {directory}")
@@ -59,7 +72,7 @@ def execute_terminal_command():
                 run_taxabilitymapping_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
                                                  f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
 
-                run_taxpayerregistrations_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                run_taxpayerregistrations_command = (f"/./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
                                                      f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
 
             # Joins the current selected path of the client utilities /bin folder with the command to run the extracts
