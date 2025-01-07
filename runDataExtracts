@@ -5,21 +5,21 @@ import os
 import platform
 
 # Global variables to store selected directory for output file, credentials, and records
-output_file_path = ""
+utilities_file_path = ""
 api_user = ""
 api_password = ""
 
 
 # Function to browse and select the directory where the output file will be saved
 def browse_directory():
-    global output_file_path
+    global utilities_file_path
 
     # Ask the user to select a directory
     directory = filedialog.askdirectory(title="Select Directory")
 
     # Update global output path if a directory was selected
     if directory:
-        output_file_path = os.path.join(directory, "taxareaid.xml")
+        utilities_file_path = os.path.join(directory, "")
 
         # Update the label to show the selected directory
         directory_label.config(text=f"Selected directory: {directory}")
@@ -27,7 +27,7 @@ def browse_directory():
 
 # Function to execute the client utilities
 def execute_terminal_command():
-    global api_user, api_password, output_file_path
+    global api_user, api_password, utilities_file_path
 
     # Retrieve the values from the input fields
     api_user = api_user_entry.get()
@@ -45,20 +45,35 @@ def execute_terminal_command():
         bat_or_sh = "sh"  # For non-Windows, use .sh
 
     # Check if output file exists after the command runs
-    if output_file_path:
+    if utilities_file_path:
         try:
-            # Build the main command with dynamic API user and password
+            # Build the main command with dynamic API user and password but tailored to whether or not the system
+            # running the process is Windows or not
             if platform.system() == "Windows":
-                main_command = (f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
-                                f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
+                run_taxabilitymapping_command = (f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                                 f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
+
+                run_taxpayerregistrations_command = (f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                                     f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
             else:
-                main_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
-                                f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
+                run_taxabilitymapping_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                                 f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
 
-            full_command = f"cd {os.path.dirname(output_file_path)} && {main_command}"
+                run_taxpayerregistrations_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                                     f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
 
-            # Run the main command in the selected directory
-            subprocess.run(full_command, shell=True, check=True)
+            # Joins the current selected path of the client utilities /bin folder with the command to run the extracts
+            full_command_run_taxabilitymapping = (f"cd {os.path.dirname(utilities_file_path)} && "
+                                                  f"{run_taxabilitymapping_command}")
+
+            full_command_run_taxpayerregistrations = (f"cd {os.path.dirname(utilities_file_path)} && "
+                                                      f"{run_taxpayerregistrations_command}")
+
+            # Run first command in the selected directory
+            subprocess.run(full_command_run_taxabilitymapping, shell=True, check=True)
+
+            # Run second command in the selected directory
+            subprocess.run(full_command_run_taxpayerregistrations, shell=True, check=True)
 
             # Update the result label
             result_label.config(text="***Data Extract(s) Complete***")
