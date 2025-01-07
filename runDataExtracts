@@ -1,5 +1,12 @@
-#Before you can use this, please download the Client Utilities folder from Vertex Community
-and then configure your .properties file from within it to point to your current O Series environment. This will be the /vertex-remove-services
+#Before you can use this, please complete the following requirements:
+#
+#
+# 1. Download the Client Utilities folder from Vertex Community and then configure your .properties file from within 
+# it to point to your current O Series environment. This will be the /vertex-remove-services
+#
+#
+# 2. Create two data extract definitions: One using the template 'taxpayer registrations' and name it TAXPAYERREGISTRATIONS
+# the other one using template 'taxability mapping' and name it TAXABILITYMAPPING.
 
 
 
