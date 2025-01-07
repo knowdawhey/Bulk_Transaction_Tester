@@ -50,10 +50,10 @@ def execute_terminal_command():
             # Build the main command with dynamic API user and password
             if platform.system() == "Windows":
                 main_command = (f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
-                                f" -n TAXAREAS -l taxareaid.csv")
+                                f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
             else:
                 main_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
-                                f" -n TAXAREAS -l taxareaid.csv")
+                                f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
 
             full_command = f"cd {os.path.dirname(output_file_path)} && {main_command}"
 
