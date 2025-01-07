@@ -1,0 +1,105 @@
+import tkinter as tk
+from tkinter import filedialog
+import subprocess
+import os
+import platform
+
+# Global variables to store selected directory for output file, credentials, and records
+output_file_path = ""
+api_user = ""
+api_password = ""
+
+
+# Function to browse and select the directory where the output file will be saved
+def browse_directory():
+    global output_file_path
+
+    # Ask the user to select a directory
+    directory = filedialog.askdirectory(title="Select Directory")
+
+    # Update global output path if a directory was selected
+    if directory:
+        output_file_path = os.path.join(directory, "taxareaid.xml")
+
+        # Update the label to show the selected directory
+        directory_label.config(text=f"Selected directory: {directory}")
+
+
+# Function to execute the client utilities
+def execute_terminal_command():
+    global api_user, api_password, output_file_path
+
+    # Retrieve the values from the input fields
+    api_user = api_user_entry.get()
+    api_password = api_password_entry.get()
+
+    # Check if the credentials and database are provided
+    if not api_user or not api_password:
+        result_label.config(text="Please provide both API user and password.")
+        return
+
+    # Determine the file extension based on the operating system
+    if platform.system() == "Windows":
+        bat_or_sh = "bat"  # For Windows, use .bat
+    else:
+        bat_or_sh = "sh"  # For non-Windows, use .sh
+
+    # Check if output file exists after the command runs
+    if output_file_path:
+        try:
+            # Build the main command with dynamic API user and password
+            if platform.system() == "Windows":
+                main_command = (f".\\runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                f" -n TAXAREAS -l taxareaid.csv")
+            else:
+                main_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                                f" -n TAXAREAS -l taxareaid.csv")
+
+            full_command = f"cd {os.path.dirname(output_file_path)} && {main_command}"
+
+            # Run the main command in the selected directory
+            subprocess.run(full_command, shell=True, check=True)
+
+            # Update the result label
+            result_label.config(text="***Data Extract(s) Complete***")
+
+        except subprocess.CalledProcessError as e:
+            result_label.config(text=f"Error running command: {e}")
+    else:
+        result_label.config(text="No output file path selected!")
+
+
+# Create the main window
+root = tk.Tk()
+root.title("Run Command")
+
+# Label and entry for API user
+api_user_label = tk.Label(root, text="API User:")
+api_user_label.pack(pady=5)
+api_user_entry = tk.Entry(root)
+api_user_entry.pack(pady=5)
+
+# Label and entry for API password
+api_password_label = tk.Label(root, text="API Password:")
+api_password_label.pack(pady=5)
+api_password_entry = tk.Entry(root, show="*")  # hide password input
+api_password_entry.pack(pady=5)
+
+# Create a button that will trigger the PowerShell command execution
+execute_button = tk.Button(root, text="Run Command", command=execute_terminal_command)
+execute_button.pack(pady=20)
+
+# Create a button that will prompt the user to browse and select a directory
+browse_button = tk.Button(root, text="Browse Directory", command=browse_directory)
+browse_button.pack(pady=10)
+
+# Label to display the selected directory
+directory_label = tk.Label(root, text="No directory selected")
+directory_label.pack(pady=10)
+
+# Label to display the results
+result_label = tk.Label(root, text="Results will be shown here.")
+result_label.pack(pady=10)
+
+# Start the Tkinter event loop
+root.mainloop()
