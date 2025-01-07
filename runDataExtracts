@@ -79,7 +79,7 @@ def execute_terminal_command():
                 run_taxabilitymapping_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
                                                  f" -n TAXABILITYMAPPING -l taxabilitymapping.csv")
 
-                run_taxpayerregistrations_command = (f"/./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
+                run_taxpayerregistrations_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
                                                      f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
 
             # Joins the current selected path of the client utilities /bin folder with the command to run the extracts
