@@ -10,7 +10,7 @@ api_user = ""
 api_password = ""
 
 
-# Function to browse and select the directory where the output file will be saved
+# Function to browse and select the directory where the client utilities /bin is located
 def browse_directory():
     global utilities_file_path
 
@@ -81,7 +81,7 @@ def execute_terminal_command():
         except subprocess.CalledProcessError as e:
             result_label.config(text=f"Error running command: {e}")
     else:
-        result_label.config(text="No output file path selected!")
+        result_label.config(text="No path selected!")
 
 
 # Create the main window
