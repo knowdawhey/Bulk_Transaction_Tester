@@ -1,26 +1,3 @@
-# Before you can use this, please complete the following requirements:
-#
-#
-# 1. Download the Client Utilities folder from Vertex Community and then configure your .properties file from within 
-# it to point to your current O Series environment. This will be the /vertex-remove-services
-#
-#
-# 2. Create two data extract definitions: One using the template 'taxpayer registrations' and name it TAXPAYERREGISTRATIONS
-# the other one using template 'taxability mapping' and name it TAXABILITYMAPPING.
-#
-#
-#
-#
-# Current design is that once the .py is launched, it asks for the /vertex-remote-services endpoint
-# and the user/pass of the API user. Once you click 'run command', it automatically edits your oseries-client.properties file with said endpoint.
-
-
-
-
-
-
-
-
 import tkinter as tk
 from tkinter import filedialog
 import subprocess
@@ -33,7 +10,7 @@ api_user = ""
 api_password = ""
 url_endpoint = ""
 
-# Function to browse and select the directory where the client utilities /bin is located
+# Function to browse and select the directory where the client utilities root directory is located
 def browse_directory():
     global utilities_file_path
 
@@ -98,7 +75,7 @@ def execute_terminal_command():
                 run_taxpayerregistrations_command = (f"./runDataExtract.{bat_or_sh} -u {api_user} -p {api_password}"
                                                      f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
 
-            # Joins the current selected path of the client utilities /bin folder with the command to run the extracts
+            # Joins the current selected path of the client utilities + /bin folder with the command to run the extracts
             full_command_run_taxabilitymapping = (f"cd {os.path.dirname(utilities_file_path)}\\bin &&"
                                                   f"{run_taxabilitymapping_command}")
 
