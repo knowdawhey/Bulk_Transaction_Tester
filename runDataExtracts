@@ -1,4 +1,4 @@
-#Before you can use this, please complete the following requirements:
+# Before you can use this, please complete the following requirements:
 #
 #
 # 1. Download the Client Utilities folder from Vertex Community and then configure your .properties file from within 
@@ -7,8 +7,12 @@
 #
 # 2. Create two data extract definitions: One using the template 'taxpayer registrations' and name it TAXPAYERREGISTRATIONS
 # the other one using template 'taxability mapping' and name it TAXABILITYMAPPING.
-
-
+#
+#
+#
+#
+# Current design is that once the .py is launched, it asks for the /vertex-remote-services endpoint
+# and the user/pass of the API user. Once you click 'run command', it automatically edits your oseries-client.properties file with said endpoint.
 
 
 
@@ -23,11 +27,11 @@ import subprocess
 import os
 import platform
 
-# Global variables to store selected directory for output file, credentials, and records
+# Global variables to store selected directory for output file, credentials, URL endpoint, and records
 utilities_file_path = ""
 api_user = ""
 api_password = ""
-
+url_endpoint = ""
 
 # Function to browse and select the directory where the client utilities /bin is located
 def browse_directory():
@@ -36,7 +40,7 @@ def browse_directory():
     # Ask the user to select a directory
     directory = filedialog.askdirectory(title="Select Directory")
 
-    # Update global path if a directory was selected but ad a \ to ensure the execute_terminal_command
+    # Update global path if a directory was selected but ad a \\ to ensure the execute_terminal_command
     # actually runs correctly
     if directory:
         utilities_file_path = os.path.join(directory) + "\\"
@@ -47,15 +51,16 @@ def browse_directory():
 
 # Function to execute the client utilities
 def execute_terminal_command():
-    global api_user, api_password, utilities_file_path
+    global api_user, api_password, utilities_file_path, url_endpoint
 
     # Retrieve the values from the input fields
     api_user = api_user_entry.get()
     api_password = api_password_entry.get()
+    url_endpoint = url_endpoint_entry.get()
 
-    # Check if the credentials and database are provided
-    if not api_user or not api_password:
-        result_label.config(text="Please provide both API user and password.")
+    # Check if the credentials and URL endpoint are provided
+    if not api_user or not api_password or not url_endpoint:
+        result_label.config(text="Please provide API user, password, and URL endpoint.")
         return
 
     # Determine the file extension based on the operating system
@@ -67,6 +72,17 @@ def execute_terminal_command():
     # Check if output file exists after the command runs
     if utilities_file_path:
         try:
+            # Update the oseries-client.properties file with the provided URL endpoint
+            config_path = os.path.join(os.path.dirname(utilities_file_path), "config", "oseries-client.properties")
+            with open(config_path, "r") as file:
+                config_lines = file.readlines()
+            with open(config_path, "w") as file:
+                for line in config_lines:
+                    if line.startswith("WebServicesUrl="):
+                        file.write(f"WebServicesUrl={url_endpoint}\n")
+                    else:
+                        file.write(line)
+
             # Build the main command with dynamic API user and password but tailored to whether or not the system
             # running the process is Windows or not
             if platform.system() == "Windows":
@@ -83,10 +99,10 @@ def execute_terminal_command():
                                                      f" -n TAXPAYERREGISTRATIONS -l taxpayerregistrations.csv")
 
             # Joins the current selected path of the client utilities /bin folder with the command to run the extracts
-            full_command_run_taxabilitymapping = (f"cd {os.path.dirname(utilities_file_path)} && "
+            full_command_run_taxabilitymapping = (f"cd {os.path.dirname(utilities_file_path)}\\bin &&"
                                                   f"{run_taxabilitymapping_command}")
 
-            full_command_run_taxpayerregistrations = (f"cd {os.path.dirname(utilities_file_path)} && "
+            full_command_run_taxpayerregistrations = (f"cd {os.path.dirname(utilities_file_path)}\\bin && "
                                                       f"{run_taxpayerregistrations_command}")
 
             # Run first command in the selected directory
@@ -120,12 +136,18 @@ api_password_label.pack(pady=5)
 api_password_entry = tk.Entry(root, show="*")  # hide password input
 api_password_entry.pack(pady=5)
 
+# Label and entry for URL endpoint
+url_endpoint_label = tk.Label(root, text="Enter Endpoint for /vertex-remote-services:")
+url_endpoint_label.pack(pady=5)
+url_endpoint_entry = tk.Entry(root)
+url_endpoint_entry.pack(pady=5)
+
 # Create a button that will trigger the PowerShell command execution
 execute_button = tk.Button(root, text="Run Command", command=execute_terminal_command)
 execute_button.pack(pady=20)
 
 # Create a button that will prompt the user to browse and select a directory
-browse_button = tk.Button(root, text="Browse Directory", command=browse_directory)
+browse_button = tk.Button(root, text="Select Client Utilities Root Directory", command=browse_directory)
 browse_button.pack(pady=10)
 
 # Label to display the selected directory
